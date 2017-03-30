@@ -5,11 +5,15 @@ import android.graphics.Color;
 import android.net.wifi.p2p.WifiP2pManager;
 import android.os.Build;
 import android.preference.PreferenceManager;
+import android.support.v4.view.GravityCompat;
+import android.support.v4.widget.DrawerLayout;
+import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -24,6 +28,7 @@ import com.example.coolweather.util.Utility;
 
 import org.w3c.dom.Text;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 
 import okhttp3.Call;
@@ -44,6 +49,10 @@ public class WeatherActivity extends AppCompatActivity {
     private TextView carWashText;
     private TextView pm25Text;
     private ImageView bingPicImg;
+    private Button navButton;
+
+    public SwipeRefreshLayout swipeRefresh;
+    public DrawerLayout drawerLayout;
 
     private final String TAG = "WeatherActivity";
 
@@ -71,10 +80,21 @@ public class WeatherActivity extends AppCompatActivity {
         carWashText = (TextView)findViewById(R.id.car_wash_text);
         pm25Text = (TextView)findViewById(R.id.pm25_text);
         bingPicImg = (ImageView)findViewById(R.id.bing_pic_img);
+        swipeRefresh = (SwipeRefreshLayout)findViewById(R.id.swipe_refresh);
+        swipeRefresh.setColorSchemeResources(R.color.colorPrimary);
+        navButton = (Button)findViewById(R.id.nav_button);
+        drawerLayout = (DrawerLayout)findViewById(R.id.drawer_layout);
+        navButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                drawerLayout.openDrawer(GravityCompat.START);
+            }
+        });
 
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
         String weatherString = prefs.getString("weather", null);
         String bingPic = prefs.getString("bing_pic", null);
+        final String weatherId;
         if(bingPic != null) {
             Glide.with(this).load(bingPic).into(bingPicImg);
         } else {
@@ -83,12 +103,19 @@ public class WeatherActivity extends AppCompatActivity {
 
         if(weatherString != null) {
             Weather weather = Utility.handleWeatherResponse(weatherString);
+            weatherId = weather.basic.weatherId;
             showWeatherInfo(weather);
         } else {
-            String weatherId = getIntent().getStringExtra("weather_id");
+            weatherId = getIntent().getStringExtra("weather_id");
             weatherLayout.setVisibility(View.INVISIBLE);
             requestWeather(weatherId);
         }
+        swipeRefresh.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+            @Override
+            public void onRefresh() {
+                requestWeather(weatherId);
+            }
+        });
 
     }
 
@@ -99,14 +126,13 @@ public class WeatherActivity extends AppCompatActivity {
             @Override
             public void onFailure(Call call, IOException e) {
                 Toast.makeText(WeatherActivity.this, "获取天气信息失败", Toast.LENGTH_SHORT).show();
+                swipeRefresh.setRefreshing(false);
             }
 
             @Override
             public void onResponse(Call call, Response response) throws IOException {
-                Log.d(TAG, "onResponse");
                 final String reponseText = response.body().string();
                 final Weather weather = Utility.handleWeatherResponse(reponseText);
-                Log.d(TAG, "reponse is " + weather);
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
@@ -119,6 +145,7 @@ public class WeatherActivity extends AppCompatActivity {
                         } else {
                             Toast.makeText(WeatherActivity.this, "加载天气信息失败", Toast.LENGTH_SHORT).show();
                         }
+                        swipeRefresh.setRefreshing(false);
                     }
                 });
             }
